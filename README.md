@@ -110,6 +110,16 @@ Run your build locally
 docker run -p 127.0.0.1:80:8080/tcp --rm -it tibiadata
 ```
 
+#### Windows AMD64
+
+You can also cross-compile a native Windows executable from a non-Windows machine using Go's built-in cross-compilation support.
+
+```console
+GOOS=windows GOARCH=amd64 go build -o build/tibiadata-api-go.exe ./src
+```
+
+The resulting `tibiadata-api-go.exe` can be run directly on a Windows Intel/AMD 64-bit machine.
+
 ### Environment variables
 
 _Information will be added at a later stage._
