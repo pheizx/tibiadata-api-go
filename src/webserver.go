@@ -300,9 +300,13 @@ func runWebServer() {
 		})
 	})
 
+	// Set the webserver port, overridable via TIBIADATA_PORT
+	port := getEnv("TIBIADATA_PORT", "8080")
+	log.Printf("[info] TibiaData API webserver port: %s", port)
+
 	// Build the http server
 	server := &http.Server{
-		Addr:    ":8080", // listen and serve on 0.0.0.0:8080 (for windows "localhost:8080")
+		Addr:    ":" + port, // listen and serve on 0.0.0.0:<port> (for windows "localhost:<port>")
 		Handler: router,
 	}
 
