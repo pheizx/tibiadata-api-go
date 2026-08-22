@@ -131,6 +131,14 @@ func TibiaDataInitializer() {
 		log.Printf("[info] TibiaData API proxy: %s", TibiaDataProxyDomain)
 	}
 
+	// Setting TibiaDataHTTPProxyUser/Pass for routing outbound requests through the
+	// Oxylabs ISP proxy (isp.oxylabs.io), round-robining across its port range
+	if isEnvExist("TIBIADATA_HTTP_PROXY_USER") {
+		TibiaDataHTTPProxyUser = getEnv("TIBIADATA_HTTP_PROXY_USER", "")
+		TibiaDataHTTPProxyPass = getEnv("TIBIADATA_HTTP_PROXY_PASS", "")
+		log.Printf("[info] TibiaData API HTTP proxy: enabled")
+	}
+
 	// Run some functions that are empty but required for documentation to be done
 	_ = tibiaNewslistArchive()
 	_ = tibiaNewslistArchiveDays()

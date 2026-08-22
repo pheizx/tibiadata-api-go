@@ -34,3 +34,15 @@ func TestTibiaDataInitializer(t *testing.T) {
 	assert.Equal("https", TibiaDataProtocol)
 	assert.Equal("unittest.example.com", TibiaDataHost)
 }
+
+func TestTibiaDataInitializerHTTPProxy(t *testing.T) {
+	assert := assert.New(t)
+
+	t.Setenv("TIBIADATA_HTTP_PROXY_USER", "customer-user")
+	t.Setenv("TIBIADATA_HTTP_PROXY_PASS", "pass")
+
+	TibiaDataInitializer()
+
+	assert.Equal("customer-user", TibiaDataHTTPProxyUser)
+	assert.Equal("pass", TibiaDataHTTPProxyPass)
+}

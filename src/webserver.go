@@ -7,10 +7,12 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	_ "github.com/mantyr/go-charset/data"
@@ -28,12 +30,40 @@ var (
 	// TibiaData app resty vars
 	TibiaDataUserAgent, TibiaDataProxyDomain string
 
+	// TibiaDataHTTPProxyUser and TibiaDataHTTPProxyPass are the credentials for the
+	// Oxylabs ISP proxy (isp.oxylabs.io) used for all requests to tibia.com, set through
+	// env TIBIADATA_HTTP_PROXY_USER and TIBIADATA_HTTP_PROXY_PASS. Requests are spread
+	// across ports tibiaDataProxyPortMin-tibiaDataProxyPortMax in round-robin fashion.
+	TibiaDataHTTPProxyUser, TibiaDataHTTPProxyPass string
+
 	// tibiaDataClient is a shared resty client reused across all requests
 	tibiaDataClient *resty.Client
+
+	// tibiaDataProxyPortCounter is incremented for every proxied request to round-robin
+	// across the Oxylabs ISP proxy port range
+	tibiaDataProxyPortCounter atomic.Uint32
 
 	// ErrorNotFound will be returned if the requests ends up in a 404
 	ErrorNotFound = errors.New("page not found")
 )
+
+const (
+	// tibiaDataProxyHost is the Oxylabs ISP proxy endpoint
+	tibiaDataProxyHost = "isp.oxylabs.io"
+
+	// tibiaDataProxyPortMin and tibiaDataProxyPortMax define the inclusive port range
+	// that requests are round-robined across on tibiaDataProxyHost
+	tibiaDataProxyPortMin = 8001
+	tibiaDataProxyPortMax = 8010
+)
+
+// nextTibiaDataProxyPort returns the next port in the round-robin rotation across
+// tibiaDataProxyPortMin-tibiaDataProxyPortMax.
+func nextTibiaDataProxyPort() int {
+	n := tibiaDataProxyPortCounter.Add(1) - 1
+	portRange := uint32(tibiaDataProxyPortMax - tibiaDataProxyPortMin + 1)
+	return tibiaDataProxyPortMin + int(n%portRange)
+}
 
 // initTibiaDataClient creates the shared resty client with static configuration.
 // Must be called after TibiaDataUserAgent is set.
@@ -61,6 +91,25 @@ func initTibiaDataClient() {
 
 	// Disable redirection of client (so we skip parsing maintenance page)
 	tibiaDataClient.SetRedirectPolicy(resty.NoRedirectPolicy())
+
+	// Route all requests through the Oxylabs ISP proxy if credentials are set via
+	// TIBIADATA_HTTP_PROXY_USER / TIBIADATA_HTTP_PROXY_PASS, round-robining across
+	// tibiaDataProxyPortMin-tibiaDataProxyPortMax so each request may exit on a
+	// different port.
+	if TibiaDataHTTPProxyUser != "" {
+		transport, err := tibiaDataClient.Transport()
+		if err != nil {
+			log.Printf("[error] failed to get resty transport for proxy setup: %s", err)
+		} else {
+			transport.Proxy = func(_ *http.Request) (*url.URL, error) {
+				return &url.URL{
+					Scheme: "http",
+					User:   url.UserPassword(TibiaDataHTTPProxyUser, TibiaDataHTTPProxyPass),
+					Host:   fmt.Sprintf("%s:%d", tibiaDataProxyHost, nextTibiaDataProxyPort()),
+				}, nil
+			}
+		}
+	}
 }
 
 // DebugOutInformation wraps OutInformation with some debug info

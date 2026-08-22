@@ -17,6 +17,37 @@ var _ = func() bool {
 	return true
 }()
 
+func TestInitTibiaDataClientHTTPProxy(t *testing.T) {
+	assert := assert.New(t)
+
+	TibiaDataHTTPProxyUser = "customer-user"
+	TibiaDataHTTPProxyPass = "pass"
+	tibiaDataProxyPortCounter.Store(0)
+	t.Cleanup(func() {
+		TibiaDataHTTPProxyUser = ""
+		TibiaDataHTTPProxyPass = ""
+		initTibiaDataClient()
+	})
+
+	initTibiaDataClient()
+
+	transport, err := tibiaDataClient.Transport()
+	assert.NoError(err)
+
+	req, _ := http.NewRequest(http.MethodGet, "https://www.tibia.com/", nil)
+
+	// requests should round-robin across ports 8001-8010, wrapping back to 8001
+	for i, wantPort := range []int{8001, 8002, 8003, 8009, 8010, 8001} {
+		if i == 3 {
+			tibiaDataProxyPortCounter.Store(8) // fast-forward to just before wraparound
+		}
+
+		proxyURL, err := transport.Proxy(req)
+		assert.NoError(err)
+		assert.Equal(fmt.Sprintf("http://customer-user:pass@isp.oxylabs.io:%d", wantPort), proxyURL.String())
+	}
+}
+
 func TestFakeToUpCodeCoverage(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
